@@ -12,7 +12,7 @@ let pool;
 try {
   pool = new Pool({
     connectionString: process.env.DATABASE_URL,
-    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+    ssl: process.env.NODE_ENV === 'production' && process.env.DATABASE_URL?.includes('railway') ? { rejectUnauthorized: false } : false,
     max: 20,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 2000,
@@ -230,13 +230,20 @@ const startServer = async () => {
     console.log('Port:', port);
     console.log('Database URL:', process.env.DATABASE_URL ? 'Set' : 'Not set');
     
-    // Initialize database first
-    await initializeDatabase();
+    // Try to initialize database, but don't fail if it doesn't work
+    try {
+      await initializeDatabase();
+      console.log('Database initialized successfully');
+    } catch (dbError) {
+      console.warn('Database initialization failed, continuing without database:', dbError.message);
+      console.log('Application will run in fallback mode');
+    }
     
     // Start the server
     app.listen(port, '0.0.0.0', () => {
       console.log(`Server running on port ${port}`);
       console.log(`Health check available at http://localhost:${port}/api/health`);
+      console.log(`Fallback endpoint available at http://localhost:${port}/api/fallback`);
     });
     
   } catch (error) {
