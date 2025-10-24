@@ -7,11 +7,28 @@ require('dotenv').config();
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Database connection
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
-});
+// Database connection with better error handling
+let pool;
+try {
+  pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+    max: 20,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 2000,
+  });
+  
+  // Test database connection
+  pool.on('connect', () => {
+    console.log('Database connected successfully');
+  });
+  
+  pool.on('error', (err) => {
+    console.error('Database connection error:', err);
+  });
+} catch (error) {
+  console.error('Failed to create database pool:', error);
+}
 
 // Middleware
 app.use(cors());
@@ -20,7 +37,13 @@ app.use(express.static('public'));
 
 // Initialize database tables
 const initializeDatabase = async () => {
+  if (!pool) {
+    console.error('Database pool not available');
+    return;
+  }
+  
   try {
+    console.log('Initializing database...');
     await pool.query(`
       CREATE TABLE IF NOT EXISTS products (
         id SERIAL PRIMARY KEY,
@@ -88,8 +111,10 @@ const initializeDatabase = async () => {
       }
       console.log('Sample products inserted successfully');
     }
+    console.log('Database initialization completed');
   } catch (error) {
     console.error('Error initializing database:', error);
+    throw error;
   }
 };
 
@@ -98,8 +123,22 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// Fallback route for when database is not available
+app.get('/api/fallback', (req, res) => {
+  res.json({
+    message: 'Application is running but database is not available',
+    status: 'partial',
+    timestamp: new Date().toISOString(),
+    platform: process.env.PLATFORM || 'unknown'
+  });
+});
+
 // Get all products
 app.get('/api/products', async (req, res) => {
+  if (!pool) {
+    return res.status(503).json({ error: 'Database not available' });
+  }
+  
   try {
     const { category, limit = 20, offset = 0 } = req.query;
     let query = 'SELECT * FROM products';
@@ -128,6 +167,10 @@ app.get('/api/products', async (req, res) => {
 
 // Get single product by ID
 app.get('/api/products/:id', async (req, res) => {
+  if (!pool) {
+    return res.status(503).json({ error: 'Database not available' });
+  }
+  
   try {
     const { id } = req.params;
     const result = await pool.query('SELECT * FROM products WHERE id = $1', [id]);
@@ -145,6 +188,10 @@ app.get('/api/products/:id', async (req, res) => {
 
 // Get product categories
 app.get('/api/categories', async (req, res) => {
+  if (!pool) {
+    return res.status(503).json({ error: 'Database not available' });
+  }
+  
   try {
     const result = await pool.query('SELECT DISTINCT category FROM products ORDER BY category');
     res.json(result.rows.map(row => row.category));
@@ -156,17 +203,60 @@ app.get('/api/categories', async (req, res) => {
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
-  res.json({ 
-    status: 'OK', 
+  const healthStatus = {
+    status: 'OK',
     timestamp: new Date().toISOString(),
-    platform: process.env.PLATFORM || 'unknown'
-  });
+    platform: process.env.PLATFORM || 'unknown',
+    database: pool ? 'connected' : 'disconnected',
+    port: port,
+    nodeVersion: process.version,
+    environment: process.env.NODE_ENV || 'development'
+  };
+  
+  res.json(healthStatus);
 });
 
-// Start server
-app.listen(port, async () => {
-  console.log(`Server running on port ${port}`);
-  await initializeDatabase();
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error('Unhandled error:', err);
+  res.status(500).json({ error: 'Internal server error' });
 });
+
+// Start server with better error handling
+const startServer = async () => {
+  try {
+    console.log('Starting server...');
+    console.log('Environment:', process.env.NODE_ENV || 'development');
+    console.log('Port:', port);
+    console.log('Database URL:', process.env.DATABASE_URL ? 'Set' : 'Not set');
+    
+    // Initialize database first
+    await initializeDatabase();
+    
+    // Start the server
+    app.listen(port, '0.0.0.0', () => {
+      console.log(`Server running on port ${port}`);
+      console.log(`Health check available at http://localhost:${port}/api/health`);
+    });
+    
+  } catch (error) {
+    console.error('Failed to start server:', error);
+    process.exit(1);
+  }
+};
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  process.exit(1);
+});
+
+// Start the server
+startServer();
 
 module.exports = app;
