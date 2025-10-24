@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ecommerce Demo - Vercel vs Railway</title>
+    <link href="/css/output.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- Header -->
+    <header class="bg-white shadow-sm border-b">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center py-4">
+                <div class="flex items-center">
+                    <h1 class="text-2xl font-bold text-gray-900">Ecommerce Demo</h1>
+                    <span class="ml-3 px-2 py-1 text-xs font-semibold bg-blue-100 text-blue-800 rounded-full">
+                        Vercel vs Railway
+                    </span>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <div class="text-sm text-gray-500">
+                        Platform: <span id="platform" class="font-semibold">Loading...</span>
+                    </div>
+                    <div class="text-sm text-gray-500">
+                        Status: <span id="status" class="font-semibold text-green-600">Online</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Hero Section -->
+        <div class="text-center mb-12">
+            <h2 class="text-4xl font-bold text-gray-900 mb-4">
+                Product Showcase
+            </h2>
+            <p class="text-xl text-gray-600 max-w-2xl mx-auto">
+                A simple ecommerce application built with Express.js, Tailwind CSS, and PostgreSQL. 
+                Deployed on both Vercel and Railway for comparison.
+            </p>
+        </div>
+
+        <!-- Category Filter -->
+        <div class="mb-8">
+            <div class="flex flex-wrap gap-2 justify-center">
+                <button class="category-btn px-4 py-2 rounded-full border border-gray-300 text-gray-700 hover:bg-gray-100 transition-colors" data-category="">
+                    All Products
+                </button>
+                <div id="category-buttons" class="flex flex-wrap gap-2">
+                    <!-- Categories will be loaded here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading State -->
+        <div id="loading" class="text-center py-12">
+            <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <p class="mt-2 text-gray-600">Loading products...</p>
+        </div>
+
+        <!-- Error State -->
+        <div id="error" class="hidden text-center py-12">
+            <div class="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md mx-auto">
+                <i class="fas fa-exclamation-triangle text-red-500 text-2xl mb-2"></i>
+                <h3 class="text-lg font-semibold text-red-800 mb-2">Error Loading Products</h3>
+                <p class="text-red-600">Please check your connection and try again.</p>
+                <button onclick="loadProducts()" class="mt-4 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors">
+                    Retry
+                </button>
+            </div>
+        </div>
+
+        <!-- Products Grid -->
+        <div id="products-grid" class="hidden grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <!-- Products will be loaded here -->
+        </div>
+
+        <!-- Product Modal -->
+        <div id="product-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                <div class="p-6">
+                    <div class="flex justify-between items-start mb-4">
+                        <h3 id="modal-title" class="text-2xl font-bold text-gray-900"></h3>
+                        <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600">
+                            <i class="fas fa-times text-xl"></i>
+                        </button>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <img id="modal-image" src="" alt="" class="w-full h-64 object-cover rounded-lg">
+                        </div>
+                        <div>
+                            <div class="space-y-4">
+                                <div>
+                                    <h4 class="text-lg font-semibold text-gray-900">Price</h4>
+                                    <p id="modal-price" class="text-2xl font-bold text-blue-600"></p>
+                                </div>
+                                <div>
+                                    <h4 class="text-lg font-semibold text-gray-900">Category</h4>
+                                    <p id="modal-category" class="text-gray-600"></p>
+                                </div>
+                                <div>
+                                    <h4 class="text-lg font-semibold text-gray-900">Stock</h4>
+                                    <p id="modal-stock" class="text-gray-600"></p>
+                                </div>
+                                <div>
+                                    <h4 class="text-lg font-semibold text-gray-900">Description</h4>
+                                    <p id="modal-description" class="text-gray-600"></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-gray-800 text-white py-8 mt-16">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+            <p class="text-gray-400">
+                Demo application for Vercel vs Railway comparison guide
+            </p>
+            <p class="text-sm text-gray-500 mt-2">
+                Built with Express.js, Tailwind CSS, and PostgreSQL
+            </p>
+        </div>
+    </footer>
+
+    <script>
+        let currentCategory = '';
+        let products = [];
+
+        // Load platform info
+        async function loadPlatformInfo() {
+            try {
+                const response = await fetch('/api/health');
+                const data = await response.json();
+                document.getElementById('platform').textContent = data.platform || 'Unknown';
+                document.getElementById('status').textContent = 'Online';
+                document.getElementById('status').className = 'font-semibold text-green-600';
+            } catch (error) {
+                document.getElementById('platform').textContent = 'Error';
+                document.getElementById('status').textContent = 'Offline';
+                document.getElementById('status').className = 'font-semibold text-red-600';
+            }
+        }
+
+        // Load categories
+        async function loadCategories() {
+            try {
+                const response = await fetch('/api/categories');
+                const categories = await response.json();
+                
+                const container = document.getElementById('category-buttons');
+                categories.forEach(category => {
+                    const button = document.createElement('button');
+                    button.className = 'category-btn px-4 py-2 rounded-full border border-gray-300 text-gray-700 hover:bg-gray-100 transition-colors';
+                    button.textContent = category;
+                    button.setAttribute('data-category', category);
+                    button.onclick = () => filterByCategory(category);
+                    container.appendChild(button);
+                });
+            } catch (error) {
+                console.error('Error loading categories:', error);
+            }
+        }
+
+        // Load products
+        async function loadProducts() {
+            try {
+                document.getElementById('loading').classList.remove('hidden');
+                document.getElementById('error').classList.add('hidden');
+                document.getElementById('products-grid').classList.add('hidden');
+
+                const url = currentCategory ? `/api/products?category=${currentCategory}` : '/api/products';
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                products = data.products;
+                displayProducts(products);
+                
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('products-grid').classList.remove('hidden');
+            } catch (error) {
+                console.error('Error loading products:', error);
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('error').classList.remove('hidden');
+            }
+        }
+
+        // Display products
+        function displayProducts(productsToShow) {
+            const grid = document.getElementById('products-grid');
+            grid.innerHTML = '';
+
+            productsToShow.forEach(product => {
+                const productCard = document.createElement('div');
+                productCard.className = 'bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow cursor-pointer';
+                productCard.onclick = () => showProductModal(product);
+                
+                productCard.innerHTML = `
+                    <div class="aspect-w-16 aspect-h-9">
+                        <img src="${product.image_url}" alt="${product.name}" class="w-full h-48 object-cover">
+                    </div>
+                    <div class="p-4">
+                        <h3 class="text-lg font-semibold text-gray-900 mb-2 line-clamp-2">${product.name}</h3>
+                        <p class="text-gray-600 text-sm mb-2 line-clamp-2">${product.description}</p>
+                        <div class="flex justify-between items-center">
+                            <span class="text-xl font-bold text-blue-600">$${product.price}</span>
+                            <span class="text-sm text-gray-500">${product.category}</span>
+                        </div>
+                        <div class="mt-2">
+                            <span class="text-xs text-gray-500">Stock: ${product.stock_quantity}</span>
+                        </div>
+                    </div>
+                `;
+                
+                grid.appendChild(productCard);
+            });
+        }
+
+        // Filter by category
+        function filterByCategory(category) {
+            currentCategory = category;
+            
+            // Update active button
+            document.querySelectorAll('.category-btn').forEach(btn => {
+                btn.classList.remove('bg-blue-600', 'text-white');
+                btn.classList.add('border-gray-300', 'text-gray-700');
+            });
+            
+            const activeBtn = document.querySelector(`[data-category="${category}"]`);
+            if (activeBtn) {
+                activeBtn.classList.remove('border-gray-300', 'text-gray-700');
+                activeBtn.classList.add('bg-blue-600', 'text-white');
+            }
+            
+            loadProducts();
+        }
+
+        // Show product modal
+        function showProductModal(product) {
+            document.getElementById('modal-title').textContent = product.name;
+            document.getElementById('modal-image').src = product.image_url;
+            document.getElementById('modal-image').alt = product.name;
+            document.getElementById('modal-price').textContent = `$${product.price}`;
+            document.getElementById('modal-category').textContent = product.category;
+            document.getElementById('modal-stock').textContent = `${product.stock_quantity} available`;
+            document.getElementById('modal-description').textContent = product.description;
+            
+            document.getElementById('product-modal').classList.remove('hidden');
+        }
+
+        // Close modal
+        function closeModal() {
+            document.getElementById('product-modal').classList.add('hidden');
+        }
+
+        // Close modal on outside click
+        document.getElementById('product-modal').onclick = (e) => {
+            if (e.target.id === 'product-modal') {
+                closeModal();
+            }
+        };
+
+        // Initialize app
+        document.addEventListener('DOMContentLoaded', () => {
+            loadPlatformInfo();
+            loadCategories();
+            loadProducts();
+        });
+    </script>
+</body>
+</html>
