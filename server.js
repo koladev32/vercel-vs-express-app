@@ -13,9 +13,12 @@ const dbUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.en
 
 let pool;
 try {
+  // Enable SSL with relaxed certificate validation for Supabase and Railway
+  const needsSSL = dbUrl?.includes('supabase') || dbUrl?.includes('railway');
+  
   pool = new Pool({
     connectionString: dbUrl,
-    ssl: process.env.NODE_ENV === 'production' && (dbUrl?.includes('railway') || dbUrl?.includes('supabase')) ? { rejectUnauthorized: false } : false,
+    ssl: needsSSL ? { rejectUnauthorized: false } : false,
     max: 20,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 2000,
