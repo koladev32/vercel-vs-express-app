@@ -13,15 +13,23 @@ const dbUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.en
 
 let pool;
 try {
-  // Enable SSL with relaxed certificate validation for Supabase and Railway
-  const needsSSL = dbUrl?.includes('supabase') || dbUrl?.includes('railway');
+  // For production, always use SSL with relaxed certificate validation
+  // This handles all cloud databases (Supabase, Railway, Vercel, etc.)
+  const useSSL = process.env.NODE_ENV === 'production' || dbUrl?.includes('supabase') || dbUrl?.includes('railway');
+  
+  console.log('Database connection:', {
+    urlSet: !!dbUrl,
+    urlPreview: dbUrl ? dbUrl.substring(0, 30) + '...' : 'none',
+    sslEnabled: useSSL,
+    isLocalDatabase: dbUrl?.includes('localhost')
+  });
   
   pool = new Pool({
     connectionString: dbUrl,
-    ssl: needsSSL ? { rejectUnauthorized: false } : false,
+    ssl: useSSL ? { rejectUnauthorized: false } : false,
     max: 20,
     idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 2000,
+    connectionTimeoutMillis: 10000, // Increase timeout for cloud connections
   });
   
   // Test database connection
