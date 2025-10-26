@@ -8,11 +8,14 @@ const app = express();
 const port = process.env.PORT || 3000;
 
 // Database connection with better error handling
+// Support multiple environment variable names for different platforms
+const dbUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.POSTGRES_PRISMA_URL;
+
 let pool;
 try {
   pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: process.env.NODE_ENV === 'production' && process.env.DATABASE_URL?.includes('railway') ? { rejectUnauthorized: false } : false,
+    connectionString: dbUrl,
+    ssl: process.env.NODE_ENV === 'production' && (dbUrl?.includes('railway') || dbUrl?.includes('supabase')) ? { rejectUnauthorized: false } : false,
     max: 20,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 2000,
