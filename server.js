@@ -17,6 +17,20 @@ try {
   // This handles all cloud databases (Supabase, Railway, Vercel, etc.)
   const useSSL = process.env.NODE_ENV === 'production' || dbUrl?.includes('supabase') || dbUrl?.includes('railway');
   
+  // Parse the URL to force SSL mode
+  let connectionConfig = { connectionString: dbUrl };
+  
+  if (useSSL) {
+    // For Supabase and other cloud databases, force SSL and disable certificate validation
+    connectionConfig = {
+      connectionString: dbUrl + (dbUrl.includes('?') ? '&' : '?') + 'sslmode=require',
+      ssl: {
+        rejectUnauthorized: false,
+        require: true
+      }
+    };
+  }
+  
   console.log('Database connection:', {
     urlSet: !!dbUrl,
     urlPreview: dbUrl ? dbUrl.substring(0, 30) + '...' : 'none',
@@ -25,8 +39,7 @@ try {
   });
   
   pool = new Pool({
-    connectionString: dbUrl,
-    ssl: useSSL ? { rejectUnauthorized: false } : false,
+    ...connectionConfig,
     max: 20,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 10000, // Increase timeout for cloud connections
