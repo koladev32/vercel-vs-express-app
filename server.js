@@ -70,27 +70,33 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
-// Initialize database tables
-const initializeDatabase = async () => {
+// Initialize database tables with retry logic
+const initializeDatabase = async (retries = 3) => {
   if (!pool) {
     console.error('Database pool not available');
     return;
   }
   
-  try {
-    console.log('Initializing database...');
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS products (
-        id SERIAL PRIMARY KEY,
-        name VARCHAR(255) NOT NULL,
-        description TEXT,
-        price DECIMAL(10,2) NOT NULL,
-        image_url VARCHAR(500),
-        category VARCHAR(100),
-        stock_quantity INTEGER DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      console.log(`Initializing database... (attempt ${attempt}/${retries})`);
+      
+      // Create table with timeout
+      await Promise.race([
+        pool.query(`
+          CREATE TABLE IF NOT EXISTS products (
+            id SERIAL PRIMARY KEY,
+            name VARCHAR(255) NOT NULL,
+            description TEXT,
+            price DECIMAL(10,2) NOT NULL,
+            image_url VARCHAR(500),
+            category VARCHAR(100),
+            stock_quantity INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          )
+        `),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Database query timeout')), 15000))
+      ]);
 
     // Insert sample products if table is empty
     const result = await pool.query('SELECT COUNT(*) FROM products');
@@ -145,11 +151,21 @@ const initializeDatabase = async () => {
         );
       }
       console.log('Sample products inserted successfully');
+      }
+      console.log('Database initialization completed');
+      return; // Success - exit retry loop
+    } catch (error) {
+      console.error(`Error initializing database (attempt ${attempt}/${retries}):`, error.message);
+      
+      if (attempt < retries) {
+        console.log(`Retrying in 2 seconds...`);
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      } else {
+        console.warn('Database initialization failed after all retries');
+        // Don't throw - let the app run in fallback mode
+        return;
+      }
     }
-    console.log('Database initialization completed');
-  } catch (error) {
-    console.error('Error initializing database:', error);
-    throw error;
   }
 };
 
