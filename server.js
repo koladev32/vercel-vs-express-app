@@ -17,20 +17,6 @@ try {
   // This handles all cloud databases (Supabase, Railway, Vercel, etc.)
   const useSSL = process.env.NODE_ENV === 'production' || dbUrl?.includes('supabase') || dbUrl?.includes('railway');
   
-  // Parse the URL to force SSL mode
-  let connectionConfig = { connectionString: dbUrl };
-  
-  if (useSSL) {
-    // For Supabase and other cloud databases, force SSL and disable certificate validation
-    connectionConfig = {
-      connectionString: dbUrl + (dbUrl.includes('?') ? '&' : '?') + 'sslmode=require',
-      ssl: {
-        rejectUnauthorized: false,
-        require: true
-      }
-    };
-  }
-  
   console.log('Database connection:', {
     urlSet: !!dbUrl,
     urlPreview: dbUrl ? dbUrl.substring(0, 30) + '...' : 'none',
@@ -38,12 +24,34 @@ try {
     isLocalDatabase: dbUrl?.includes('localhost')
   });
   
-  pool = new Pool({
-    ...connectionConfig,
+  // Create pool configuration
+  let connectionString = dbUrl;
+  
+  // Add sslmode parameter to connection string for cloud databases
+  if (useSSL && dbUrl && !dbUrl.includes('localhost')) {
+    connectionString = dbUrl + (dbUrl.includes('?') ? '&' : '?') + 'sslmode=no-verify';
+  }
+  
+  const poolConfig = {
+    connectionString: connectionString,
     max: 20,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 10000, // Increase timeout for cloud connections
+  };
+  
+  // Only add ssl config if we're not on localhost
+  if (useSSL && dbUrl && !dbUrl.includes('localhost')) {
+    poolConfig.ssl = {
+      rejectUnauthorized: false
+    };
+  }
+  
+  console.log('Pool config:', {
+    hasSSL: !!poolConfig.ssl,
+    connectionStringModified: connectionString !== dbUrl
   });
+  
+  pool = new Pool(poolConfig);
   
   // Test database connection
   pool.on('connect', () => {
