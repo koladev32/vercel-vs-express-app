@@ -13,34 +13,28 @@ const dbUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.en
 
 let pool;
 try {
-  // For production, always use SSL with relaxed certificate validation
-  // This handles all cloud databases (Supabase, Railway, Vercel, etc.)
-  const useSSL = process.env.NODE_ENV === 'production' || dbUrl?.includes('supabase') || dbUrl?.includes('railway');
+  // Determine if we should use SSL
+  // Use SSL for all databases EXCEPT localhost
+  const isLocalDatabase = dbUrl?.includes('localhost') || dbUrl?.includes('127.0.0.1');
+  const useSSL = !isLocalDatabase && !!dbUrl;
   
   console.log('Database connection:', {
     urlSet: !!dbUrl,
     urlPreview: dbUrl ? dbUrl.substring(0, 30) + '...' : 'none',
     sslEnabled: useSSL,
-    isLocalDatabase: dbUrl?.includes('localhost')
+    isLocalDatabase: isLocalDatabase
   });
   
   // Create pool configuration
-  let connectionString = dbUrl;
-  
-  // Add sslmode parameter to connection string for cloud databases
-  if (useSSL && dbUrl && !dbUrl.includes('localhost')) {
-    connectionString = dbUrl + (dbUrl.includes('?') ? '&' : '?') + 'sslmode=no-verify';
-  }
-  
   const poolConfig = {
-    connectionString: connectionString,
+    connectionString: dbUrl,
     max: 20,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 10000, // Increase timeout for cloud connections
   };
   
-  // Only add ssl config if we're not on localhost
-  if (useSSL && dbUrl && !dbUrl.includes('localhost')) {
+  // Add SSL config for all non-localhost databases
+  if (useSSL) {
     poolConfig.ssl = {
       rejectUnauthorized: false
     };
@@ -48,7 +42,7 @@ try {
   
   console.log('Pool config:', {
     hasSSL: !!poolConfig.ssl,
-    connectionStringModified: connectionString !== dbUrl
+    maxConnections: poolConfig.max
   });
   
   pool = new Pool(poolConfig);
